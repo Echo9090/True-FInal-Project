@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Passenger Home - Chrys Ride</title>
+  <link rel="stylesheet" href="css/home-menu.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.5/dist/umd/supabase.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+  
+<nav id="sidebar" class="sidebar"> 
+  <ul class="nav-list">
+    <li><a href="home-passenger.html"><img src="home-menu-image/home.png" alt="Home"> Home</a></li>
+    <li><a href="passenger-profile.html"><img src="home-menu-image/account.png" alt="Profile"> Profile</a></li>
+    <li><a href="ride-menu.html"><img src="home-menu-image/booking.png"> My Rides</a></li>
+    <li><a href="ride-setup.html"><img src="home-menu-image/booking.png"> Book a Ride</a></li>
+    <li><a href="passenger-setting.html"><img src="home-menu-image/setting.png"> Settings</a></li>
+  </ul>
+</nav>
+
+<div class="layout-wrapper">
+  <!-- Main -->
+  <div class="main">
+    <header class="app-header">
+      <button id="menu-toggle" class="menu-btn">☰</button>
+      <span class="header-spacer"></span>
+      <button id="logout" class="logout-btn">Logout</button>
+    </header>
+
+    <div class="welcome-header">
+      <img src="home-menu-image/logo.png" class="logo" alt="Logo">
+      <h1>Welcome to <span>Chrys Ride</span></h1>
+      <h2 id="user-greeting">Welcome back!</h2>
+    </div>
+
+    <!-- CURRENT BOOKING CARD (initially hidden) -->
+    <div id="active-ride-card" style="display:none; background:#fffbea;border-radius:16px;box-shadow:0 2px 8px #0001;padding:20px;margin:20px auto 0 auto;max-width:500px;">
+      <h3 style="margin-top:0;">Current Booking</h3>
+      <div class="ride-details" style="display:flex;flex-direction:column;gap:6px;">
+        <span id="ride-route"></span>
+        <span id="ride-status"></span>
+        <span id="ride-driver"></span>
+        <button id="cancel-ride-btn" style="margin-top:10px;background:#c91d1d;color:white;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;">Cancel Ride</button>
+      </div>
+    </div>
+    <!-- END CURRENT BOOKING CARD -->
+  </div>
+</div>
+
+<script>
+  // SIDEBAR LOGIC
+  const sidebar = document.getElementById("sidebar");
+  const toggle = document.getElementById("menu-toggle");
+  toggle.addEventListener("click", () => {
+    sidebar.classList.toggle("open");
+  });
+
+  document.getElementById("logout").addEventListener("click", async () => {
+    const supabase = window.supabase.createClient(
+      'https://klasvndqmhaioyzyedpg.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsYXN2bmRxbWhhaW95enllZHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzODIwNjIsImV4cCI6MjA2Mzk1ODA2Mn0.IhbTIgHda9LrY7EpbqwKfYjZHRPAIwFcxOxwi1srJ4U'
+    );
+    await supabase.auth.signOut();
+    window.location.href = "passenger-login.html";
+  });
+
+  // -- CANCEL RIDE LOGIC & ACTIVE RIDE CARD --
+  const supabase = window.supabase.createClient(
+    'https://klasvndqmhaioyzyedpg.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsYXN2bmRxbWhhaW95enllZHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzODIwNjIsImV4cCI6MjA2Mzk1ODA2Mn0.IhbTIgHda9LrY7EpbqwKfYjZHRPAIwFcxOxwi1srJ4U'
+  );
+
+  let globalUserId = null;
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    // Get user info
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("users")
+        .select("first_name, user_id")
+        .eq("supabase_uid", user.id)
+        .single();
+      if (profile) {
+        globalUserId = profile.user_id;
+        document.getElementById("user-greeting").textContent =
+          `Welcome back, ${profile.first_name}!`;
+        // Load active ride
+        loadActiveRide(globalUserId);
+      }
+    }
+  });
+
+  // Loads the current (active) ride for the passenger
+  async function loadActiveRide(user_id) {
+    const card = document.getElementById("active-ride-card");
+    // Only show active (not cancelled/completed) rides
+    const { data: rides } = await supabase
+      .from("rides")
+      .select("*")
+      .eq("passenger_id", user_id)
+      .in("status", ["requested", "accepted", "ongoing"])
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (rides && rides.length) {
+      const ride = rides[0];
+      card.style.display = "block";
+      document.getElementById("ride-route").textContent =
+        `Route: ${ride.pickup} → ${ride.dropoff}`;
+      document.getElementById("ride-status").textContent =
+        `Status: ${ride.status.charAt(0).toUpperCase() + ride.status.slice(1)}`;
+      document.getElementById("ride-driver").textContent =
+        ride.driver_id ? "Driver assigned" : "Waiting for driver...";
+      // Save ride_id for cancellation
+      card.dataset.rideId = ride.ride_id;
+    } else {
+      card.style.display = "none";
+    }
+  }
+
+  // Cancel ride logic
+  document.getElementById("cancel-ride-btn").addEventListener("click", async () => {
+    const card = document.getElementById("active-ride-card");
+    const rideId = card.dataset.rideId;
+    if (!rideId) return;
+    if (!confirm("Are you sure you want to cancel this ride?")) return;
+    const { error } = await supabase
+      .from("rides")
+      .update({ status: "cancelled" })
+      .eq("ride_id", rideId);
+    if (!error) {
+      alert("Ride cancelled.");
+      loadActiveRide(globalUserId);
+    } else {
+      alert("Failed to cancel ride.");
+    }
+  });
+</script>
+</body>
+</html>

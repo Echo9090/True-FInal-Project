@@ -1,0 +1,85 @@
+.rides-section {
+  margin: 30px auto 0 auto;
+  max-width: 500px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px #0001;
+  padding: 24px 22px 10px 22px;
+}
+.rides-section h2 {
+  font-size: 22px;
+  margin: 0 0 16px 0;
+  color: #2b2b5f;
+}
+.rides-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.ride-item {
+  background: #f1f1f1;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  padding: 18px 18px 12px 18px;
+  box-shadow: 0 1px 5px #0001;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ride-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.ride-route {
+  font-weight: 600;
+  color: #232350;
+  font-size: 18px;
+}
+.ride-type {
+  font-size: 14px;
+  color: #666;
+  margin-left: 7px;
+}
+.ride-status {
+  background: #2b2b5f;
+  color: white;
+  padding: 2px 13px;
+  border-radius: 7px;
+  font-size: 13px;
+  margin-left: 6px;
+}
+.ride-meta {
+  font-size: 13px;
+  color: #444;
+}
+.ride-action-btn {
+  margin-top: 7px;
+  padding: 8px 16px;
+  background: #2b2b5f;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  margin-right: 8px;
+  transition: background 0.18s;
+}
+.ride-action-btn.cancel {
+  background: #c91d1d;
+}
+.ride-action-btn:hover {
+  background: #232350;
+}
+.ride-action-btn.cancel:hover {
+  background: #9b1a1a;
+}
+
+/* Modal styles */
+.modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.2); justify-content: center; align-items: center; }
+.modal.show { display: flex; }
+.modal-content { background: #fff; padding: 30px 24px; border-radius: 12px; width: 95vw; max-width: 350px; margin: auto; position: relative; text-align: center;}
+.modal-content h3 { margin-top: 0; }
+.close-modal { position: absolute; right: 13px; top: 11px; font-size: 22px; cursor: pointer; color: #888; }
+.modal-btn-group { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+.modal-btn-group button { font-size: 15px; }

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Driver Home - Chrys Ride</title>
+  <link rel="stylesheet" href="css/home-menu.css" />
+  <link rel="stylesheet" href="css/home-driver.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+  <nav id="sidebar" class="sidebar">
+    <ul class="nav-list">
+      <li><a href="home-driver.html"><img src="home-menu-image/home.png"> Home</a></li>
+      <li><a href="driver-profile.html"><img src="home-menu-image/account.png"> Profile</a></li>
+      <li><a href="Booking-driver.html"><img src="home-menu-image/booking.png"> My Booking</a></li>
+      <li><a href="driver-earning.html"><img src="home-menu-image/salary.png"> Earnings</a></li>
+      <li><a href="driver-setting.html"><img src="home-menu-image/setting.png"> Settings</a></li>
+    </ul>
+  </nav>
+
+  <div class="layout-wrapper">
+    <div class="main">
+      <header class="app-header">
+        <button id="menu-toggle" class="menu-btn">☰</button>
+        <span class="header-spacer"></span>
+        <button id="logout" class="logout-btn">Logout</button>
+      </header>
+
+      <div class="welcome-header">
+        <img src="home-menu-image/logo.png" class="logo" alt="Logo">
+        <h1>Welcome to <span>Chrys Ride</span></h1>
+        <h2 id="user-greeting">Welcome back!</h2>
+      </div>
+
+      <div class="rides-section">
+        <h2>Available Rides</h2>
+        <ul class="rides-list" id="available-rides-list"></ul>
+      </div>
+      <div class="rides-section">
+        <h2>Active Rides</h2>
+        <ul class="rides-list" id="active-rides-list"></ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL for Settle Payment/Cancel -->
+  <div id="settle-modal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal" onclick="closeSettleModal()">&times;</span>
+      <h3>Settle Payment</h3>
+      <p>Type in the payment/fare for this ride:</p>
+      <input type="number" id="fare-input" placeholder="Enter fare (₱)" min="0" style="width:80%;font-size:17px;margin:12px 0 8px 0;padding:8px;border-radius:7px;border:1px solid #bbb;">
+      <div class="modal-btn-group">
+        <button class="ride-action-btn" onclick="completeRideModal()">Payment Has Been Settled</button>
+        <button class="ride-action-btn cancel" onclick="cancelRideModal()">Cancel Ride</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.5/dist/umd/supabase.js"></script>
+  <script>
+    const supabase = window.supabase.createClient(
+      'https://klasvndqmhaioyzyedpg.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsYXN2bmRxbWhhaW95enllZHBnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzODIwNjIsImV4cCI6MjA2Mzk1ODA2Mn0.IhbTIgHda9LrY7EpbqwKfYjZHRPAIwFcxOxwi1srJ4U'
+    );
+
+    // Sidebar logic
+    const sidebar = document.getElementById("sidebar");
+    const toggle = document.getElementById("menu-toggle");
+    toggle.addEventListener("click", () => {
+      sidebar.classList.toggle("open");
+    });
+
+    document.getElementById("logout").addEventListener("click", async () => {
+      await supabase.auth.signOut();
+      window.location.href = "driver-login.html";
+    });
+
+    let driverUserId = null;
+    let modalRideId = null;
+
+    // Fetch driver info
+    async function getDriverProfile() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data: driver } = await supabase
+        .from("users")
+        .select("user_id, first_name")
+        .eq("supabase_uid", user.id)
+        .eq("role", "driver")
+        .single();
+      if (driver) {
+        driverUserId = driver.user_id;
+        document.getElementById("user-greeting").textContent = `Welcome back, ${driver.first_name}!`;
+      }
+      return driverUserId;
+    }
+
+    // Load available rides
+    async function loadAvailableRides() {
+      const ridesList = document.getElementById('available-rides-list');
+      ridesList.innerHTML = "<li>Loading...</li>";
+
+      // Get vehicles for this driver
+      const { data: vehicles } = await supabase
+        .from("vehicles")
+        .select("vehicle_type")
+        .eq("user_id", driverUserId);
+      const vehicleTypes = vehicles ? vehicles.map(v => v.vehicle_type) : [];
+
+      // Only show rides that match vehicle type
+      const { data: rides } = await supabase
+        .from("rides")
+        .select("ride_id, pickup, dropoff, created_at, vehicle_type")
+        .is("driver_id", null)
+        .eq("status", "requested")
+        .in("vehicle_type", vehicleTypes)
+        .order("created_at", { ascending: true });
+
+      if (!rides || !rides.length) {
+        ridesList.innerHTML = "<li>No rides available for your vehicle type.</li>";
+        return;
+      }
+      ridesList.innerHTML = rides.map(r =>
+        `<li class="ride-item">
+          <div class="ride-main">
+            <span class="ride-route">${r.pickup} → ${r.dropoff}</span>
+            <span class="ride-type">${r.vehicle_type}</span>
+          </div>
+          <div class="ride-meta">
+            Booked: ${new Date(r.created_at).toLocaleString()}
+          </div>
+          <button class="ride-action-btn" onclick="acceptRide('${r.ride_id}')">Accept Ride</button>
+        </li>`
+      ).join('');
+    }
+
+    // Load active rides for this driver
+    async function loadActiveRides() {
+      const ridesList = document.getElementById('active-rides-list');
+      ridesList.innerHTML = "<li>Loading...</li>";
+
+      const { data: rides } = await supabase
+        .from("rides")
+        .select("ride_id, pickup, dropoff, created_at, status, vehicle_type")
+        .eq("driver_id", driverUserId)
+        .in("status", ["accepted", "ongoing"])
+        .order("created_at", { ascending: false });
+
+      if (!rides || !rides.length) {
+        ridesList.innerHTML = "<li>No active rides.</li>";
+        return;
+      }
+      ridesList.innerHTML = rides.map(r =>
+        `<li class="ride-item">
+          <div class="ride-main">
+            <span class="ride-route">${r.pickup} → ${r.dropoff}</span>
+            <span class="ride-type">${r.vehicle_type}</span>
+            <span class="ride-status">${r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
+          </div>
+          <div class="ride-meta">
+            Booked: ${new Date(r.created_at).toLocaleString()}
+          </div>
+          <button class="ride-action-btn" onclick="openSettleModal('${r.ride_id}')">Settle Payment</button>
+          <button class="ride-action-btn cancel" onclick="cancelRideByDriver('${r.ride_id}')">Cancel Ride</button>
+        </li>`
+      ).join('');
+    }
+
+    // Accept Ride
+    async function acceptRide(rideId) {
+      if (!driverUserId) {
+        alert("Driver not logged in.");
+        return;
+      }
+      const { error } = await supabase
+        .from("rides")
+        .update({
+          driver_id: driverUserId,
+          status: "accepted"
+        })
+        .eq("ride_id", rideId);
+
+      if (!error) {
+        alert("Ride accepted!");
+        await loadAvailableRides();
+        await loadActiveRides();
+      } else {
+        alert("Failed to accept ride: " + error.message);
+      }
+    }
+    window.acceptRide = acceptRide;
+
+    // Cancel Ride by Driver
+    async function cancelRideByDriver(rideId) {
+      if (!confirm("Are you sure you want to cancel this ride?")) return;
+      const { error } = await supabase
+        .from("rides")
+        .update({ status: "cancelled" })
+        .eq("ride_id", rideId);
+      if (!error) {
+        alert("Ride cancelled.");
+        await loadActiveRides();
+      } else {
+        alert("Failed to cancel ride.");
+      }
+    }
+    window.cancelRideByDriver = cancelRideByDriver;
+
+    // Modal logic for settle/cancel
+    function openSettleModal(rideId) {
+      modalRideId = rideId;
+      document.getElementById('fare-input').value = "";
+      document.getElementById('settle-modal').classList.add('show');
+    }
+    function closeSettleModal() {
+      modalRideId = null;
+      document.getElementById('settle-modal').classList.remove('show');
+    }
+    window.openSettleModal = openSettleModal;
+    window.closeSettleModal = closeSettleModal;
+
+    async function completeRideModal() {
+      if (!modalRideId) return;
+      const fareValue = parseFloat(document.getElementById('fare-input').value);
+      if (isNaN(fareValue) || fareValue <= 0) {
+        alert("Please enter a valid payment/fare amount.");
+        return;
+      }
+      // Only update fields you have: fare and status!
+      const { error } = await supabase
+        .from("rides")
+        .update({
+          status: "completed",
+          fare: fareValue
+        })
+        .eq("ride_id", modalRideId);
+
+      if (!error) {
+        alert("Ride marked as completed!");
+        closeSettleModal();
+        await loadActiveRides();
+      } else {
+        alert("Failed to complete ride. " + (error.message || ""));
+        console.error(error);
+      }
+    }
+    window.completeRideModal = completeRideModal;
+
+    async function cancelRideModal() {
+      if (!modalRideId) return;
+      const { error } = await supabase
+        .from("rides")
+        .update({ status: "cancelled" })
+        .eq("ride_id", modalRideId);
+      if (!error) {
+        alert("Ride cancelled.");
+        closeSettleModal();
+        await loadActiveRides();
+      } else {
+        alert("Failed to cancel ride.");
+      }
+    }
+    window.cancelRideModal = cancelRideModal;
+
+    // On page load
+    document.addEventListener("DOMContentLoaded", async () => {
+      await getDriverProfile();
+      await loadAvailableRides();
+      await loadActiveRides();
+    });
+  </script>
+</body>
+</html>
